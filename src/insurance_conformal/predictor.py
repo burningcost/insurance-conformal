@@ -42,7 +42,7 @@ class InsuranceConformalPredictor:
     Parameters
     ----------
     model : fitted sklearn-compatible model
-        Must implement predict(X). For LightGBM offset models, ensure
+        Must implement predict(X). For CatBoost offset models, ensure
         predict() returns expected counts (i.e., includes the exposure offset).
     nonconformity : str, default "pearson_weighted"
         Non-conformity score type. One of:
@@ -57,7 +57,7 @@ class InsuranceConformalPredictor:
         Tweedie power when auto-detection fails.
     tweedie_power : float or None, default None
         Tweedie variance power parameter. If None, attempts to auto-detect
-        from the model (works for LightGBM and sklearn TweedieRegressor).
+        from the model (works for CatBoost and sklearn TweedieRegressor).
         If detection fails, defaults to 1.5.
     calibration_frac : float, default 0.2
         Fraction of training data to hold out for calibration, when using

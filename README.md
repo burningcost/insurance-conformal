@@ -21,13 +21,13 @@ This accounts for the inherent heteroscedasticity of insurance claims. The resul
 ## Installation
 
 ```bash
-pip install insurance-conformal
+uv pip install insurance-conformal
 
-# With LightGBM support:
-pip install "insurance-conformal[lightgbm]"
+# With CatBoost support:
+uv pip install "insurance-conformal[catboost]"
 
 # With plotting:
-pip install "insurance-conformal[all]"
+uv pip install "insurance-conformal[all]"
 ```
 
 ## Quick start
@@ -36,16 +36,22 @@ pip install "insurance-conformal[all]"
 from insurance_conformal import InsuranceConformalPredictor
 
 # Fit your model however you normally would
-import lightgbm as lgb
-model = lgb.LGBMRegressor(objective="tweedie", tweedie_variance_power=1.5)
-model.fit(X_train, y_train)
+import catboost
+model = catboost.CatBoostRegressor(
+    loss_function="Tweedie:variance_power=1.5",
+    iterations=300,
+    learning_rate=0.05,
+    depth=6,
+    verbose=0,
+)
+model.fit(X_train_pd, y_train)
 
 # Wrap it
 cp = InsuranceConformalPredictor(
     model=model,
     nonconformity="pearson_weighted",  # default, recommended for insurance
     distribution="tweedie",
-    # tweedie_power is auto-detected from LightGBM params
+    tweedie_power=1.5,
 )
 
 # Calibrate on held-out data (must not overlap with training set)
@@ -138,7 +144,7 @@ This is distribution-free — it holds regardless of the true data distribution,
 
 **Lower bound clipped at 0.** Insurance losses are non-negative. Prediction intervals with negative lower bounds are nonsensical. We clip at 0 unconditionally.
 
-**Auto-detection of Tweedie power.** For LightGBM, the power parameter is read from `model.params_`. For sklearn `TweedieRegressor`, from `model.power`. If detection fails, we warn and default to p=1.5. Pass `tweedie_power=` explicitly if you know the correct value.
+**Auto-detection of Tweedie power.** For CatBoost, the power parameter is read from the loss function string. For sklearn `TweedieRegressor`, from `model.power`. If detection fails, we warn and default to p=1.5. Pass `tweedie_power=` explicitly if you know the correct value.
 
 ## References
 

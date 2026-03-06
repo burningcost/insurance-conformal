@@ -16,7 +16,7 @@ def extract_tweedie_power(model: Any) -> Optional[float]:
     """
     Attempt to extract the Tweedie power parameter from a fitted model.
 
-    Supports LightGBM and sklearn TweedieRegressor. Returns None if
+    Supports CatBoost and sklearn TweedieRegressor. Returns None if
     the parameter cannot be determined automatically.
 
     Parameters
@@ -29,25 +29,27 @@ def extract_tweedie_power(model: Any) -> Optional[float]:
     float or None
         The Tweedie power parameter, or None if not detectable.
     """
-    # LightGBM Booster or sklearn wrapper
+    # CatBoost — read from loss_function string
     try:
-        import lightgbm as lgb
+        import catboost
 
-        if isinstance(model, lgb.Booster):
-            params = model.params
-            if params.get("objective") in ("tweedie", "mape"):
-                return float(params.get("tweedie_variance_power", 1.5))
-            elif params.get("objective") == "poisson":
+        if isinstance(model, (catboost.CatBoostRegressor, catboost.CatBoost)):
+            params = model.get_params()
+            loss = params.get("loss_function", "")
+            if loss == "Poisson":
                 return 1.0
-            elif params.get("objective") == "gamma":
+            elif loss == "MAPE":
+                return None
+            elif "Tweedie" in loss:
+                # e.g. "Tweedie:variance_power=1.5"
+                if "variance_power=" in loss:
+                    try:
+                        return float(loss.split("variance_power=")[1].split(":")[0])
+                    except (IndexError, ValueError):
+                        return 1.5
+                return 1.5
+            elif loss == "Gamma":
                 return 2.0
-
-        if isinstance(model, lgb.LGBMRegressor):
-            objective = model.objective_
-            if objective == "tweedie":
-                return float(model.tweedie_variance_power)
-            elif objective == "poisson":
-                return 1.0
     except ImportError:
         pass
 
@@ -118,7 +120,7 @@ def apply_exposure(
     predict call). If the user passes raw rates, we need to convert.
 
     This function assumes yhat already incorporates exposure (which is
-    standard for LightGBM offset models). The exposure parameter here
+    standard for CatBoost offset models). The exposure parameter here
     is used only for validation and documentation.
 
     Parameters

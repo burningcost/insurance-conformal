@@ -39,13 +39,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-lightgbm = ["lightgbm>=4.0"]
+catboost = ["catboost>=1.2"]
 plot = ["matplotlib>=3.6"]
-all = ["lightgbm>=4.0", "matplotlib>=3.6"]
+all = ["catboost>=1.2", "matplotlib>=3.6"]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
-    "lightgbm>=4.0",
+    "catboost>=1.2",
     "matplotlib>=3.6",
     "scikit-learn>=1.3",
 ]
