@@ -19,6 +19,7 @@ from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
+import polars as pl
 
 from insurance_conformal.scores import NonconformityScore, compute_score, invert_score
 from insurance_conformal.utils import (
@@ -158,9 +159,11 @@ class InsuranceConformalPredictor:
         Parameters
         ----------
         X_cal : array-like of shape (n, p)
-            Calibration features.
+            Calibration features. Accepts numpy arrays, pandas DataFrames,
+            or polars DataFrames.
         y_cal : array-like of shape (n,)
-            Observed losses/claims for the calibration period.
+            Observed losses/claims for the calibration period. Accepts numpy,
+            pandas Series, or polars Series.
         exposure : array-like of shape (n,) or None
             Exposure for each calibration observation. Used for validation only
             — the model's predict() should already incorporate the exposure offset.
@@ -189,6 +192,9 @@ class InsuranceConformalPredictor:
 
     def _predict(self, X: Any) -> np.ndarray:
         """Call model.predict() and return as 1D numpy array."""
+        # Convert polars to numpy before passing to sklearn-compatible models
+        if isinstance(X, pl.DataFrame):
+            X = X.to_numpy()
         yhat = self.model.predict(X)
         return as_numpy(yhat).ravel()
 
@@ -209,25 +215,25 @@ class InsuranceConformalPredictor:
         self,
         X_test: Any,
         alpha: float = 0.10,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Produce prediction intervals for new observations.
 
-        Returns a DataFrame with columns "lower", "point", "upper".
+        Returns a Polars DataFrame with columns "lower", "point", "upper".
         Lower bound is clipped at 0 since insurance losses are non-negative.
 
         Parameters
         ----------
         X_test : array-like of shape (n, p)
-            Test features.
+            Test features. Accepts numpy arrays, pandas DataFrames, or
+            polars DataFrames.
         alpha : float, default 0.10
             Miscoverage rate. alpha=0.10 gives 90% prediction intervals.
 
         Returns
         -------
-        pd.DataFrame
-            Columns: lower (float), point (float), upper (float).
-            Index matches the index of X_test if it is a DataFrame.
+        pl.DataFrame
+            Columns: lower (Float64), point (Float64), upper (Float64).
         """
         if not 0 < alpha < 1:
             raise ValueError(f"alpha must be in (0, 1), got {alpha}")
@@ -244,10 +250,12 @@ class InsuranceConformalPredictor:
             clip_lower=0.0,
         )
 
-        index = X_test.index if isinstance(X_test, (pd.DataFrame, pd.Series)) else None
-        return pd.DataFrame(
-            {"lower": lower, "point": yhat, "upper": upper},
-            index=index,
+        return pl.DataFrame(
+            {
+                "lower": lower,
+                "point": yhat,
+                "upper": upper,
+            }
         )
 
     def predict(self, X_test: Any) -> np.ndarray:
@@ -272,7 +280,7 @@ class InsuranceConformalPredictor:
         y_test: Any,
         alpha: float = 0.10,
         n_bins: int = 10,
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Compute empirical coverage by decile of predicted value.
 
@@ -299,20 +307,21 @@ class InsuranceConformalPredictor:
 
         Returns
         -------
-        pd.DataFrame
-            Columns: decile (int), mean_predicted (float),
-            n_obs (int), coverage (float), target_coverage (float).
+        pl.DataFrame
+            Columns: decile (Int32), mean_predicted (Float64),
+            n_obs (Int32), coverage (Float64), target_coverage (Float64).
         """
         intervals = self.predict_interval(X_test, alpha=alpha)
         y = as_numpy(y_test)
-        covered = (y >= intervals["lower"].to_numpy()) & (y <= intervals["upper"].to_numpy())
+        lower = intervals["lower"].to_numpy()
+        upper = intervals["upper"].to_numpy()
+        covered = (y >= lower) & (y <= upper)
         yhat = intervals["point"].to_numpy()
 
-        # Assign deciles by predicted value
+        # Assign deciles by predicted value using pandas (pd.qcut is convenient)
         try:
             decile_labels = pd.qcut(yhat, q=n_bins, labels=False, duplicates="drop")
         except ValueError:
-            # Fewer unique values than bins
             decile_labels = pd.cut(yhat, bins=n_bins, labels=False, duplicates="drop")
 
         results = []
@@ -329,7 +338,7 @@ class InsuranceConformalPredictor:
                 }
             )
 
-        return pd.DataFrame(results)
+        return pl.DataFrame(results)
 
     def summary(
         self,
@@ -352,8 +361,10 @@ class InsuranceConformalPredictor:
         intervals = self.predict_interval(X_test, alpha=alpha)
         y = as_numpy(y_test)
 
-        covered = (y >= intervals["lower"].to_numpy()) & (y <= intervals["upper"].to_numpy())
-        widths = intervals["upper"].to_numpy() - intervals["lower"].to_numpy()
+        lower = intervals["lower"].to_numpy()
+        upper = intervals["upper"].to_numpy()
+        covered = (y >= lower) & (y <= upper)
+        widths = upper - lower
 
         print(f"InsuranceConformalPredictor summary")
         print(f"  Nonconformity score : {self.nonconformity}")
@@ -368,7 +379,7 @@ class InsuranceConformalPredictor:
         print()
         print("  Coverage by decile:")
         decile_df = self.coverage_by_decile(X_test, y_test, alpha=alpha)
-        for _, row in decile_df.iterrows():
+        for row in decile_df.iter_rows(named=True):
             bar = "#" * int(row["coverage"] * 20)
             flag = " *" if abs(row["coverage"] - (1 - alpha)) > 0.05 else ""
             print(
@@ -376,7 +387,8 @@ class InsuranceConformalPredictor:
                 f"(mean_pred={row['mean_predicted']:.3f}): "
                 f"{row['coverage']:.1%} [{bar:<20}]{flag}"
             )
-        if any(abs(decile_df["coverage"] - (1 - alpha)) > 0.05):
+        coverages = decile_df["coverage"].to_numpy()
+        if any(abs(coverages - (1 - alpha)) > 0.05):
             print()
             print(
                 "  * Deciles flagged with * have coverage more than 5pp from target. "

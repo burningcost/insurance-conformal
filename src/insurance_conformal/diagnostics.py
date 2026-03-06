@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import pandas as pd
+import polars as pl
 
 from insurance_conformal.utils import as_numpy
 
@@ -33,7 +34,7 @@ class CoverageDiagnostics:
     Parameters
     ----------
     y_true : array-like of shape (n,)
-        Observed values.
+        Observed values. Accepts numpy, pandas Series, or polars Series.
     y_lower : array-like of shape (n,)
         Lower bounds of prediction intervals.
     y_upper : array-like of shape (n,)
@@ -88,7 +89,7 @@ class CoverageDiagnostics:
         """Median interval width."""
         return float(np.median(self._widths))
 
-    def coverage_by_decile(self, n_bins: int = 10) -> pd.DataFrame:
+    def coverage_by_decile(self, n_bins: int = 10) -> pl.DataFrame:
         """
         Compute empirical coverage by decile of predicted value.
 
@@ -99,7 +100,7 @@ class CoverageDiagnostics:
 
         Returns
         -------
-        pd.DataFrame
+        pl.DataFrame
             Columns: decile, mean_predicted, mean_width, n_obs,
             coverage, target_coverage.
         """
@@ -124,7 +125,7 @@ class CoverageDiagnostics:
                 }
             )
 
-        return pd.DataFrame(results)
+        return pl.DataFrame(results)
 
     def coverage_plot(
         self,

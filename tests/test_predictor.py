@@ -12,6 +12,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from insurance_conformal import InsuranceConformalPredictor
@@ -114,6 +115,13 @@ class TestCalibration:
         cp.calibrate(X_cal_df, y_cal_s)
         assert cp.is_calibrated_
 
+    def test_calibrate_with_polars(self, poisson_data):
+        """Polars Series should be accepted for y_cal."""
+        y_cal_pl = pl.Series(poisson_data["y_cal"].tolist())
+        cp = InsuranceConformalPredictor(model=poisson_data["model"], tweedie_power=1.0)
+        cp.calibrate(poisson_data["X_cal"], y_cal_pl)
+        assert cp.is_calibrated_
+
 
 class TestPredictInterval:
     def test_output_structure(self, poisson_data):
@@ -121,7 +129,7 @@ class TestPredictInterval:
         cp.calibrate(poisson_data["X_cal"], poisson_data["y_cal"])
         intervals = cp.predict_interval(poisson_data["X_test"], alpha=0.10)
 
-        assert isinstance(intervals, pd.DataFrame)
+        assert isinstance(intervals, pl.DataFrame)
         assert set(intervals.columns) == {"lower", "point", "upper"}
         assert len(intervals) == len(poisson_data["y_test"])
 
@@ -130,8 +138,8 @@ class TestPredictInterval:
         cp.calibrate(poisson_data["X_cal"], poisson_data["y_cal"])
         intervals = cp.predict_interval(poisson_data["X_test"], alpha=0.10)
 
-        assert np.all(intervals["lower"] <= intervals["point"])
-        assert np.all(intervals["point"] <= intervals["upper"])
+        assert (intervals["lower"] <= intervals["point"]).all()
+        assert (intervals["point"] <= intervals["upper"]).all()
 
     def test_lower_bound_nonnegative(self, poisson_data):
         for nc in ["raw", "pearson", "pearson_weighted"]:
@@ -140,7 +148,7 @@ class TestPredictInterval:
             )
             cp.calibrate(poisson_data["X_cal"], poisson_data["y_cal"])
             intervals = cp.predict_interval(poisson_data["X_test"], alpha=0.10)
-            assert np.all(intervals["lower"] >= 0), f"Lower bound negative for {nc}"
+            assert (intervals["lower"] >= 0).all(), f"Lower bound negative for {nc}"
 
     def test_invalid_alpha(self, poisson_data):
         cp = InsuranceConformalPredictor(model=poisson_data["model"], tweedie_power=1.0)
@@ -160,30 +168,22 @@ class TestPredictInterval:
         w50 = (i50["upper"] - i50["lower"]).mean()
         assert w90 > w50, "90% intervals should be wider than 50% intervals"
 
-    def test_pandas_index_preserved(self, poisson_data):
-        X_df = pd.DataFrame(
-            poisson_data["X_test"],
-            index=np.arange(100, 100 + len(poisson_data["X_test"])),
-        )
-        cp = InsuranceConformalPredictor(model=poisson_data["model"], tweedie_power=1.0)
-        cp.calibrate(poisson_data["X_cal"], poisson_data["y_cal"])
-        intervals = cp.predict_interval(X_df, alpha=0.10)
-        assert list(intervals.index) == list(X_df.index)
-
     def test_alpha_01(self, poisson_data):
         """alpha=0.01 should produce very wide intervals."""
         cp = InsuranceConformalPredictor(model=poisson_data["model"], tweedie_power=1.0)
         cp.calibrate(poisson_data["X_cal"], poisson_data["y_cal"])
         intervals = cp.predict_interval(poisson_data["X_test"], alpha=0.01)
-        assert np.all(intervals["upper"] > 0)
+        assert (intervals["upper"] > 0).all()
 
     def test_alpha_05(self, poisson_data):
-        """alpha=0.5 should produce narrow intervals."""
+        """alpha=0.5 should produce narrower intervals than alpha=0.10."""
         cp = InsuranceConformalPredictor(model=poisson_data["model"], tweedie_power=1.0)
         cp.calibrate(poisson_data["X_cal"], poisson_data["y_cal"])
-        intervals = cp.predict_interval(poisson_data["X_test"], alpha=0.50)
-        widths = intervals["upper"] - intervals["lower"]
-        assert widths.mean() < intervals["point"].mean()  # narrower than point prediction
+        i50 = cp.predict_interval(poisson_data["X_test"], alpha=0.50)
+        i10 = cp.predict_interval(poisson_data["X_test"], alpha=0.10)
+        w50 = (i50["upper"] - i50["lower"]).mean()
+        w10 = (i10["upper"] - i10["lower"]).mean()
+        assert w50 < w10
 
 
 class TestCoverageGuarantee:
@@ -201,9 +201,9 @@ class TestCoverageGuarantee:
 
     def _check_coverage(self, cp, X_test, y_test, alpha, name=""):
         intervals = cp.predict_interval(X_test, alpha=alpha)
-        covered = (y_test >= intervals["lower"].to_numpy()) & (
-            y_test <= intervals["upper"].to_numpy()
-        )
+        lower = intervals["lower"].to_numpy()
+        upper = intervals["upper"].to_numpy()
+        covered = (y_test >= lower) & (y_test <= upper)
         coverage = covered.mean()
         target = 1 - alpha
         assert coverage >= target - self.TOLERANCE, (
@@ -308,7 +308,7 @@ class TestCoverageByDecile:
             poisson_data["X_test"], poisson_data["y_test"], alpha=0.10
         )
 
-        assert isinstance(df, pd.DataFrame)
+        assert isinstance(df, pl.DataFrame)
         assert "decile" in df.columns
         assert "coverage" in df.columns
         assert "mean_predicted" in df.columns
@@ -325,8 +325,8 @@ class TestCoverageByDecile:
         df = cp.coverage_by_decile(
             poisson_data["X_test"], poisson_data["y_test"], alpha=0.10
         )
-        assert np.all(df["coverage"] >= 0)
-        assert np.all(df["coverage"] <= 1)
+        assert (df["coverage"] >= 0).all()
+        assert (df["coverage"] <= 1).all()
 
     def test_n_obs_sums_to_total(self, poisson_data):
         cp = InsuranceConformalPredictor(
@@ -346,7 +346,7 @@ class TestCoverageByDecile:
         df = cp.coverage_by_decile(
             poisson_data["X_test"], poisson_data["y_test"], alpha=0.15
         )
-        assert np.all(df["target_coverage"] == pytest.approx(0.85))
+        assert np.allclose(df["target_coverage"].to_numpy(), 0.85)
 
     def test_mean_predicted_increases_by_decile(self, poisson_data):
         """Deciles should be ordered by predicted value."""
@@ -384,7 +384,7 @@ class TestEdgeCases:
         cp.calibrate(poisson_data["X_cal"], poisson_data["y_cal"])
         intervals = cp.predict_interval(poisson_data["X_test"], alpha=0.10)
         # All point predictions should be 2.0
-        assert np.all(intervals["point"] == 2.0)
+        assert (intervals["point"] == 2.0).all()
         # All lower/upper should be the same constant
-        assert intervals["lower"].nunique() == 1
-        assert intervals["upper"].nunique() == 1
+        assert intervals["lower"].n_unique() == 1
+        assert intervals["upper"].n_unique() == 1

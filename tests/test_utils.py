@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from insurance_conformal.utils import (
@@ -91,6 +92,19 @@ class TestTemporalSplit:
         assert e_train is None
         assert e_cal is None
 
+    def test_polars_input(self):
+        """temporal_split should accept polars DataFrames for X."""
+        n = 100
+        X = pl.DataFrame({"a": np.arange(n).tolist()})
+        y = np.arange(n, dtype=float)
+
+        X_train, X_cal, y_train, y_cal, e_train, e_cal = temporal_split(
+            X, y, calibration_frac=0.2
+        )
+
+        assert len(X_cal) == 20
+        assert len(X_train) == 80
+
     def test_with_exposure(self):
         n = 100
         X = pd.DataFrame({"a": np.arange(n)})
@@ -140,6 +154,18 @@ class TestAsNumpy:
         result = as_numpy(s)
         assert isinstance(result, np.ndarray)
         np.testing.assert_array_equal(result, [1.0, 2.0, 3.0])
+
+    def test_polars_series(self):
+        s = pl.Series([1.0, 2.0, 3.0])
+        result = as_numpy(s)
+        assert isinstance(result, np.ndarray)
+        np.testing.assert_array_equal(result, [1.0, 2.0, 3.0])
+
+    def test_polars_dataframe(self):
+        df = pl.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]})
+        result = as_numpy(df)
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (2, 2)
 
     def test_list(self):
         result = as_numpy([1, 2, 3])

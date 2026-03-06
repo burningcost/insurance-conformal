@@ -9,6 +9,7 @@ from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
+import polars as pl
 
 
 def extract_tweedie_power(model: Any) -> Optional[float]:
@@ -145,7 +146,16 @@ def apply_exposure(
 
 
 def as_numpy(x: Any) -> np.ndarray:
-    """Convert pandas Series/DataFrame or list to numpy array."""
+    """
+    Convert pandas Series/DataFrame, Polars Series/DataFrame, or list to
+    a numpy array.
+
+    For polars inputs, uses .to_numpy() which is a zero-copy operation where
+    possible. For pandas, uses .to_numpy(). Lists and numpy arrays pass
+    through np.asarray() as before.
+    """
+    if isinstance(x, (pl.Series, pl.DataFrame)):
+        return x.to_numpy()
     if isinstance(x, (pd.Series, pd.DataFrame)):
         return x.to_numpy()
     return np.asarray(x)
@@ -167,9 +177,13 @@ def temporal_split(
 
     If date_col is None, uses a simple tail split (last calibration_frac rows).
 
+    Accepts both Polars and Pandas DataFrames for X. Internally converts to
+    pandas for indexing, since sklearn estimators expect pandas or numpy at
+    the fit boundary.
+
     Parameters
     ----------
-    X : array-like
+    X : array-like, pl.DataFrame, or pd.DataFrame
         Features.
     y : array-like
         Target.
@@ -185,14 +199,21 @@ def temporal_split(
     -------
     X_train, X_cal, y_train, y_cal, exp_train, exp_cal
     """
-    X = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
+    # Normalise X to pandas for uniform iloc-based indexing
+    if isinstance(X, pl.DataFrame):
+        X_pd = X.to_pandas()
+    elif isinstance(X, pd.DataFrame):
+        X_pd = X
+    else:
+        X_pd = pd.DataFrame(X)
+
     y = as_numpy(y)
     n = len(y)
     cal_n = max(1, int(np.ceil(n * calibration_frac)))
 
     if date_col is not None:
         if isinstance(date_col, str):
-            dates = X[date_col].to_numpy()
+            dates = X_pd[date_col].to_numpy()
         else:
             dates = as_numpy(date_col)
 
@@ -204,8 +225,8 @@ def temporal_split(
         train_idx = np.arange(n - cal_n)
         cal_idx = np.arange(n - cal_n, n)
 
-    X_train = X.iloc[train_idx]
-    X_cal = X.iloc[cal_idx]
+    X_train = X_pd.iloc[train_idx]
+    X_cal = X_pd.iloc[cal_idx]
     y_train = y[train_idx]
     y_cal = y[cal_idx]
 
