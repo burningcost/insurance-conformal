@@ -1,0 +1,155 @@
+# insurance-conformal
+
+Distribution-free prediction intervals for insurance GBM and GLM pricing models.
+
+## The problem
+
+Your Tweedie GBM gives point estimates. A pricing actuary needs to know the uncertainty around those estimates — not as a parametric confidence interval that depends on distributional assumptions, but as a guarantee: *this interval will contain the actual loss at least 90% of the time, for any data distribution*.
+
+Conformal prediction provides that guarantee. The catch is that the choice of non-conformity score determines interval width. Most conformal implementations use the raw absolute residual `|y - yhat|`. For insurance data, that is wrong: it treats a 1-unit error on a £100 risk identically to a 1-unit error on a £10,000 risk, producing intervals that are too wide on low-risk policies and too narrow on large risks.
+
+## The solution
+
+For Tweedie/Poisson models, Var(Y) ~ mu^p. The correct non-conformity score is the locally-weighted Pearson residual:
+
+```
+score(y, yhat) = |y - yhat| / yhat^(p/2)
+```
+
+This accounts for the inherent heteroscedasticity of insurance claims. The result: ~30% narrower intervals with identical coverage guarantees. Based on Manna et al. (2025) and [arXiv 2507.06921](https://arxiv.org/abs/2507.06921).
+
+## Installation
+
+```bash
+pip install insurance-conformal
+
+# With LightGBM support:
+pip install "insurance-conformal[lightgbm]"
+
+# With plotting:
+pip install "insurance-conformal[all]"
+```
+
+## Quick start
+
+```python
+from insurance_conformal import InsuranceConformalPredictor
+
+# Fit your model however you normally would
+import lightgbm as lgb
+model = lgb.LGBMRegressor(objective="tweedie", tweedie_variance_power=1.5)
+model.fit(X_train, y_train)
+
+# Wrap it
+cp = InsuranceConformalPredictor(
+    model=model,
+    nonconformity="pearson_weighted",  # default, recommended for insurance
+    distribution="tweedie",
+    # tweedie_power is auto-detected from LightGBM params
+)
+
+# Calibrate on held-out data (must not overlap with training set)
+cp.calibrate(X_cal, y_cal)
+
+# Generate 90% prediction intervals
+intervals = cp.predict_interval(X_test, alpha=0.10)
+# DataFrame with columns: lower, point, upper
+
+print(intervals.head())
+#       lower   point    upper
+# 0    0.0121  0.0845   0.3291
+# 1    0.0034  0.0231   0.0901
+# 2    0.1820  1.2742   4.9621
+```
+
+## Coverage diagnostics
+
+The marginal coverage guarantee means `P(y in interval) >= 1 - alpha` averaged over all observations. In insurance, you also need to check that coverage is uniform across risk deciles — a model can achieve 90% overall while only covering 65% of high-risk policies.
+
+```python
+# THE key diagnostic
+diag = cp.coverage_by_decile(X_test, y_test, alpha=0.10)
+print(diag)
+#    decile  mean_predicted  n_obs  coverage  target_coverage
+# 0       1          0.0234    400     0.923             0.90
+# 1       2          0.0512    400     0.910             0.90
+# ...
+# 9      10          2.3410    400     0.905             0.90
+
+# Full summary: marginal coverage + decile breakdown
+cp.summary(X_test, y_test, alpha=0.10)
+
+# Matplotlib plot with confidence bands
+fig = cp.coverage_plot(X_test, y_test, alpha=0.10)
+fig.savefig("coverage_by_decile.png", dpi=150)
+
+# Interval width distribution
+fig = cp.interval_width_distribution(X_test, alpha=0.10)
+```
+
+## Non-conformity scores
+
+| Score | Formula | When to use |
+|---|---|---|
+| `pearson_weighted` | `\|y - yhat\| / yhat^(p/2)` | **Default.** Tweedie/Poisson pricing models. |
+| `pearson` | `\|y - yhat\| / sqrt(yhat)` | Pure Poisson frequency models (p=1). |
+| `deviance` | Deviance residual | When you want exact statistical optimality; slower. |
+| `anscombe` | Anscombe transform | Variance-stabilising alternative to deviance. |
+| `raw` | `\|y - yhat\|` | Baseline only. Not appropriate for insurance data. |
+
+The score hierarchy for interval width (narrowest first, coverage identical):
+`pearson_weighted >= deviance >= anscombe > pearson > raw`
+
+## Temporal calibration
+
+In insurance, you should calibrate on recent data to capture current loss trends, not a random subsample of all years:
+
+```python
+from insurance_conformal.utils import temporal_split
+
+# Split by date — calibration gets the most recent 20%
+X_train, X_cal, y_train, y_cal, _, _ = temporal_split(
+    X, y,
+    calibration_frac=0.20,
+    date_col="accident_year",  # column in X DataFrame
+)
+
+model.fit(X_train, y_train)
+cp.calibrate(X_cal, y_cal)
+```
+
+## Coverage guarantee
+
+Split conformal prediction provides the following guarantee for exchangeable data:
+
+```
+P(y_test in [lower, upper]) >= 1 - alpha
+```
+
+This is distribution-free — it holds regardless of the true data distribution, model misspecification, or covariate shift (as long as calibration and test data are exchangeable). The only assumption is that the calibration set is held out from model training.
+
+"Exchangeable" roughly means "drawn from the same distribution in the same order". For insurance, this means you should not calibrate on year 5 and test on year 1. Use temporal splits.
+
+## Design choices
+
+**Split conformal, not cross-conformal.** Cross-conformal is more statistically efficient but requires refitting the model on each calibration fold. For GBMs that take hours to train, this is not practical. Split conformal trains once, calibrates once.
+
+**No MAPIE dependency.** MAPIE is excellent but it does not expose the insurance-specific scores implemented here. The split conformal algorithm is simple enough to own: 20 lines of code for `conformal_quantile()` plus the score functions.
+
+**Lower bound clipped at 0.** Insurance losses are non-negative. Prediction intervals with negative lower bounds are nonsensical. We clip at 0 unconditionally.
+
+**Auto-detection of Tweedie power.** For LightGBM, the power parameter is read from `model.params_`. For sklearn `TweedieRegressor`, from `model.power`. If detection fails, we warn and default to p=1.5. Pass `tweedie_power=` explicitly if you know the correct value.
+
+## References
+
+- Manna, S. et al. (2025). "Distribution-free prediction sets for Tweedie regression." *arXiv:2507.06921*.
+- Angelopoulos, A. N., & Bates, S. (2023). "Conformal prediction: A gentle introduction." *Foundations and Trends in Machine Learning*, 16(4), 494-591.
+- Vovk, V., Gammerman, A., & Shafer, G. (2005). *Algorithmic learning in a random world*. Springer.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+## Contributing
+
+Issues and pull requests welcome at [github.com/burningcost/insurance-conformal](https://github.com/burningcost/insurance-conformal).

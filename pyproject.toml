@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "insurance-conformal"
+version = "0.1.0"
+description = "Distribution-free prediction intervals for insurance GBM and GLM pricing models"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Burning Cost", email = "pricing.frontier@gmail.com" },
+]
+keywords = [
+    "conformal prediction",
+    "insurance",
+    "prediction intervals",
+    "tweedie",
+    "gbm",
+    "glm",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=1.5",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+lightgbm = ["lightgbm>=4.0"]
+plot = ["matplotlib>=3.6"]
+all = ["lightgbm>=4.0", "matplotlib>=3.6"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "lightgbm>=4.0",
+    "matplotlib>=3.6",
+    "scikit-learn>=1.3",
+]
+
+[project.urls]
+Homepage = "https://github.com/burningcost/insurance-conformal"
+Repository = "https://github.com/burningcost/insurance-conformal"
+Issues = "https://github.com/burningcost/insurance-conformal/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/insurance_conformal"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short"
