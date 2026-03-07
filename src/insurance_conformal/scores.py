@@ -3,7 +3,7 @@ Non-conformity scores for insurance prediction intervals.
 
 The choice of non-conformity score matters enormously for interval width.
 Using the raw residual |y - yhat| ignores the heteroscedasticity inherent
-in Tweedie/Poisson data — where variance scales as mu^p. The locally-weighted
+in Tweedie/Poisson data - where variance scales as mu^p. The locally-weighted
 Pearson residual accounts for this, producing intervals that are narrower
 exactly where the model is confident and wider where it isn't.
 
@@ -63,7 +63,7 @@ def raw_score(y: np.ndarray, yhat: np.ndarray) -> np.ndarray:
     Absolute residual: |y - yhat|.
 
     The baseline score. Not appropriate for insurance data because it ignores
-    heteroscedasticity — risks with higher expected loss get the same absolute
+    heteroscedasticity - risks with higher expected loss get the same absolute
     tolerance as low-risk policies, which is wrong.
 
     Parameters

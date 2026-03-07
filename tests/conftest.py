@@ -27,7 +27,7 @@ class LinearPoissonModel:
         return np.exp(X @ self.beta)
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "LinearPoissonModel":
-        # Not actually fitting — beta is fixed for testing.
+        # Not actually fitting - beta is fixed for testing.
         return self
 
 

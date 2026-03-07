@@ -28,7 +28,7 @@ class CoverageDiagnostics:
     """
     Standalone coverage diagnostics that work with any set of prediction intervals.
 
-    Can be used independently of InsuranceConformalPredictor — useful if you have
+    Can be used independently of InsuranceConformalPredictor - useful if you have
     intervals from another source and want to apply the same diagnostic framework.
 
     Parameters
@@ -137,7 +137,7 @@ class CoverageDiagnostics:
         Matplotlib visualisation of coverage by decile with confidence bands.
 
         The confidence bands are Wilson score intervals for the binomial
-        proportion — they represent uncertainty in the coverage estimate
+        proportion - they represent uncertainty in the coverage estimate
         due to finite sample size, not uncertainty in the model.
 
         Parameters
@@ -214,7 +214,7 @@ class CoverageDiagnostics:
         """
         Histogram of prediction interval widths.
 
-        Useful for spotting heteroscedasticity — a good score should produce
+        Useful for spotting heteroscedasticity - a good score should produce
         intervals that widen proportionally with the point prediction. If
         the width distribution is bimodal or has a very heavy tail, the score
         is not well-matched to the data's variance structure.

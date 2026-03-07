@@ -29,7 +29,7 @@ def extract_tweedie_power(model: Any) -> Optional[float]:
     float or None
         The Tweedie power parameter, or None if not detectable.
     """
-    # CatBoost — read from loss_function string
+    # CatBoost - read from loss_function string
     try:
         import catboost
 
@@ -62,7 +62,7 @@ def extract_tweedie_power(model: Any) -> Optional[float]:
     except ImportError:
         pass
 
-    # Wrapped model (e.g. Pipeline) — try the last step
+    # Wrapped model (e.g. Pipeline) - try the last step
     try:
         if hasattr(model, "steps"):
             return extract_tweedie_power(model.steps[-1][1])
@@ -81,7 +81,7 @@ def conformal_quantile(scores: np.ndarray, alpha: float) -> float:
     guarantees marginal coverage >= 1-alpha for any exchangeable data.
 
     This is the finite-sample correction from Venn prediction / split conformal
-    prediction — the (n+1) rather than n in the numerator is essential.
+    prediction - the (n+1) rather than n in the numerator is essential.
 
     Parameters
     ----------
@@ -223,7 +223,7 @@ def temporal_split(
         train_idx = order[:-cal_n]
         cal_idx = order[-cal_n:]
     else:
-        # Simple tail split — assumes data is in temporal order
+        # Simple tail split - assumes data is in temporal order
         train_idx = np.arange(n - cal_n)
         cal_idx = np.arange(n - cal_n, n)
 

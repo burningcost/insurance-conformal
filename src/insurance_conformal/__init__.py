@@ -12,7 +12,7 @@ Example usage::
     from insurance_conformal import InsuranceConformalPredictor
 
     cp = InsuranceConformalPredictor(
-        model=fitted_lgbm_tweedie,
+        model=fitted_catboost_tweedie,
         nonconformity="pearson_weighted",
         distribution="tweedie",
     )

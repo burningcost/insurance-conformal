@@ -4,7 +4,7 @@ Distribution-free prediction intervals for insurance GBM and GLM pricing models.
 
 ## The problem
 
-Your Tweedie GBM gives point estimates. A pricing actuary needs to know the uncertainty around those estimates — not as a parametric confidence interval that depends on distributional assumptions, but as a guarantee: *this interval will contain the actual loss at least 90% of the time, for any data distribution*.
+Your Tweedie GBM gives point estimates. A pricing actuary needs to know the uncertainty around those estimates - not as a parametric confidence interval that depends on distributional assumptions, but as a guarantee: *this interval will contain the actual loss at least 90% of the time, for any data distribution*.
 
 Conformal prediction provides that guarantee. The catch is that the choice of non-conformity score determines interval width. Most conformal implementations use the raw absolute residual `|y - yhat|`. For insurance data, that is wrong: it treats a 1-unit error on a £100 risk identically to a 1-unit error on a £10,000 risk, producing intervals that are too wide on low-risk policies and too narrow on large risks.
 
@@ -70,7 +70,7 @@ print(intervals.head())
 
 ## Coverage diagnostics
 
-The marginal coverage guarantee means `P(y in interval) >= 1 - alpha` averaged over all observations. In insurance, you also need to check that coverage is uniform across risk deciles — a model can achieve 90% overall while only covering 65% of high-risk policies.
+The marginal coverage guarantee means `P(y in interval) >= 1 - alpha` averaged over all observations. In insurance, you also need to check that coverage is uniform across risk deciles - a model can achieve 90% overall while only covering 65% of high-risk policies.
 
 ```python
 # THE key diagnostic
@@ -113,7 +113,7 @@ In insurance, you should calibrate on recent data to capture current loss trends
 ```python
 from insurance_conformal.utils import temporal_split
 
-# Split by date — calibration gets the most recent 20%
+# Split by date - calibration gets the most recent 20%
 X_train, X_cal, y_train, y_cal, _, _ = temporal_split(
     X, y,
     calibration_frac=0.20,
@@ -132,7 +132,7 @@ Split conformal prediction provides the following guarantee for exchangeable dat
 P(y_test in [lower, upper]) >= 1 - alpha
 ```
 
-This is distribution-free — it holds regardless of the true data distribution, model misspecification, or covariate shift (as long as calibration and test data are exchangeable). The only assumption is that the calibration set is held out from model training.
+This is distribution-free - it holds regardless of the true data distribution, model misspecification, or covariate shift (as long as calibration and test data are exchangeable). The only assumption is that the calibration set is held out from model training.
 
 "Exchangeable" roughly means "drawn from the same distribution in the same order". For insurance, this means you should not calibrate on year 5 and test on year 1. Use temporal splits.
 

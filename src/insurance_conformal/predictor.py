@@ -3,11 +3,11 @@ InsuranceConformalPredictor: split conformal prediction for insurance pricing mo
 
 Split conformal is the right approach here. Cross-conformal and full conformal are
 more statistically efficient but require refitting the model on each calibration
-fold — unacceptable for GBMs that take hours to train. Split conformal trains once,
+fold - unacceptable for GBMs that take hours to train. Split conformal trains once,
 calibrates once, and gives finite-sample marginal coverage guarantees.
 
 The guarantee: P(y_test in [lower, upper]) >= 1 - alpha for exchangeable data.
-This is distribution-free — no parametric assumptions on the error distribution.
+This is distribution-free - no parametric assumptions on the error distribution.
 The catch: it's a marginal guarantee, not conditional. See coverage_by_decile()
 for checking whether coverage is uniform across risk deciles.
 """
@@ -79,7 +79,7 @@ class InsuranceConformalPredictor:
     --------
     >>> from insurance_conformal import InsuranceConformalPredictor
     >>> cp = InsuranceConformalPredictor(
-    ...     model=fitted_lgbm,
+    ...     model=fitted_catboost,
     ...     nonconformity="pearson_weighted",
     ...     distribution="tweedie",
     ... )
@@ -166,7 +166,7 @@ class InsuranceConformalPredictor:
             pandas Series, or polars Series.
         exposure : array-like of shape (n,) or None
             Exposure for each calibration observation. Used for validation only
-            — the model's predict() should already incorporate the exposure offset.
+            - the model's predict() should already incorporate the exposure offset.
 
         Returns
         -------
