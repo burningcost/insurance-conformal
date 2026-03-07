@@ -159,7 +159,7 @@ class CoverageDiagnostics:
         except ImportError as e:
             raise ImportError(
                 "matplotlib and scipy are required for coverage_plot(). "
-                "Install with: uv pip install "insurance-conformal[plot]""
+                "Install with: uv pip install 'insurance-conformal[plot]'"
             ) from e
 
         df = self.coverage_by_decile(n_bins=n_bins)
@@ -240,7 +240,7 @@ class CoverageDiagnostics:
         except ImportError as e:
             raise ImportError(
                 "matplotlib is required for interval_width_distribution(). "
-                "Install with: uv pip install "insurance-conformal[plot]""
+                "Install with: uv pip install 'insurance-conformal[plot]'"
             ) from e
 
         fig, axes = plt.subplots(1, 2, figsize=figsize)
