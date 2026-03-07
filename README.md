@@ -23,13 +23,13 @@ This accounts for the inherent heteroscedasticity of insurance claims. The resul
 ## Installation
 
 ```bash
-uv pip install insurance-conformal
+uv add insurance-conformal
 
 # With CatBoost support:
-uv pip install "insurance-conformal[catboost]"
+uv add "insurance-conformal[catboost]"
 
 # With plotting:
-uv pip install "insurance-conformal[all]"
+uv add "insurance-conformal[all]"
 ```
 
 ## Quick start
